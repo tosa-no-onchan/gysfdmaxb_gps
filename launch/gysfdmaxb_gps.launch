@@ -1,0 +1,28 @@
+<!-- gysfdmaxb_gps.launch -->
+<launch>
+  <!-- <arg name="param_file_name"     doc="name of param file, e.g. rover" /> -->
+  <!-- <arg name="param_file_dir"      doc="directory to look for $(arg param_file_name).yaml"
+                                  default="$(find ublox_gps)/config" /> -->
+
+  <arg name="node_name"           doc="name of this node"
+                                  default="gps" />
+  <arg name="output"              default="screen" />
+  <arg name="respawn"             default="true" />
+  <arg name="respawn_delay"       default="30" />
+  <arg name="clear_params"        default="true" />
+  <arg name="device"  default="/dev/ttyUSB0" />
+  <arg name="frame_id" default="gps_link" />
+
+  <node pkg="gysfdmaxb_gps" type="gysfdmaxb_gps_node" name="$(arg node_name)"
+        output="$(arg output)"
+        clear_params="$(arg clear_params)"
+        respawn="$(arg respawn)"
+        respawn_delay="$(arg respawn_delay)">
+    <!-- <rosparam command="load"
+              file="$(arg param_file_dir)/$(arg param_file_name).yaml" /> -->
+
+    <param name="device" type="string" value="$(arg device)" />
+    <param name="frame_id" type="string" value="$(arg frame_id)" />
+
+  </node>
+</launch>
