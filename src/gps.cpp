@@ -41,8 +41,13 @@ void Gps::setWorker(const boost::shared_ptr<Worker>& worker) {
 // https://tips.hecomi.com/entry/20120728/1343504831
 // https://blog.myon.info/entry/2015/04/19/boost-asio-serial/
 void Gps::initializeSerial(std::string port, unsigned int baudrate,
-                           uint16_t uart_in, uint16_t uart_out) {
+                           uint16_t uart_in, uint16_t uart_out, int rate) {
   port_ = port;
+  rate_ = rate;
+
+  // measurement period [ms]
+  meas_rate_ = 1000 / rate_;
+
 
   boost::shared_ptr<boost::asio::io_service> io_service(
       new boost::asio::io_service);
@@ -114,6 +119,85 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
   io_service_ =  io_service;
   serial_=serial;
 
+  #define SET_OPTION
+  #ifdef SET_OPTION
+
+    // https://blog.myon.info/entry/2015/04/19/boost-asio-serial/
+
+    ROS_INFO("Gysfdmaxb: set option");
+
+    // テキトウに1秒待つ
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    #define CHANGE_S_RATE
+    #ifdef CHANGE_S_RATE
+    // set Baud Rate 115200 for gysfdamx
+    std::string s_boaud ="$PMTK251,115200*1F\r\n";
+    
+    if(boost::asio::write(*serial_, boost::asio::buffer(s_boaud)) != s_boaud.length()){
+      ROS_ERROR("Gysfdmax: set Baud Rate error");
+      return;
+    }
+
+    ROS_INFO("Gysfdmaxb: set Baud Rate OK");
+
+    // テキトウに5秒待つ
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    // set Baud Rate 115200 for boost serial
+    serial->set_option(
+        boost::asio::serial_port_base::baud_rate(_baudrate));
+    boost::this_thread::sleep(
+        boost::posix_time::milliseconds(kSetBaudrateSleepMs));
+
+    boost::asio::serial_port_base::baud_rate current_baudrate;
+    serial->get_option(current_baudrate);
+
+    ROS_INFO("Gysfdmaxb: Get ASIO baudrate to %u", current_baudrate.value());
+    #endif
+
+    // set sample data
+    //std::string s_sample_form = "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n";
+    std::string s_sample_form = "$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
+    if(boost::asio::write(*serial_, boost::asio::buffer(s_sample_form)) != s_sample_form.length()){
+      ROS_ERROR("Gysfdmaxb: set sampling data error");
+      return;
+    }
+    ROS_INFO("Gysfdmaxb: set sampling data OK");
+
+    boost::this_thread::sleep(
+          boost::posix_time::milliseconds(kSetBaudrateSleepMs));
+
+    // set samplling rate 2[Hz]
+    //std::string s_sample_rate = "$PMTK220,500*2B\r\n";
+    // set samplling rate 4[Hz]
+    //std::string s_sample_rate = "$PMTK220,250*29\r\n";
+    // set samplling rate 5[Hz]
+    //std::string s_sample_rate = "$PMTK220,200*2C\r\n";
+    // set samplling rate 6[Hz]
+    //std::string s_sample_rate = "$PMTK220,166*2F\r\n";
+
+    ROS_INFO("Gysfdmaxb: set sampling rate %d",rate_);
+
+    std::string s_sample_rate = "$PMTK220,"+std::to_string(meas_rate_);
+    checksum(s_sample_rate);
+    //std::cout << s_sample_rate << std::endl;
+
+    if(boost::asio::write(*serial_, boost::asio::buffer(s_sample_rate)) != s_sample_rate.length()){
+      ROS_ERROR("Gysfdmaxb: set sampling rate error");
+      return;
+    }
+
+    boost::this_thread::sleep(
+          boost::posix_time::milliseconds(kSetBaudrateSleepMs));
+
+    // テキトウに2秒待つ
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+
+    ROS_INFO("Gysfdmaxb: set option end");
+
+  #endif
+
   #ifdef USE_READ_THREAD
     /* and turn on the streamer */
     ok = true;
@@ -123,7 +207,6 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
     io_service_->post(boost::bind(&Gps::async_read_some, this));
     background_thread_.reset(new boost::thread(
         boost::bind(&boost::asio::io_service::run, io_service_)));
-
   #endif
 
 }
@@ -174,25 +257,31 @@ void Gps::resetSerial(std::string port) {
 
 void Gps::read_gps(){
   // 受信データ
-	boost::array<unsigned char, 512> receive_api_frame;
+  boost::asio::streambuf response_buf;
 
   while(ok){
-    //nmea_str.clear();
-    serial_->read_some( boost::asio::buffer(receive_api_frame) );
-    // 受信結果書き出し
-    //for (size_t i = 0; i < receive_api_frame.size() - 1; ++i) {
-    for (size_t i = 0; i < receive_api_frame.size(); ++i) {
-      //std::cout << std::hex << (unsigned int)receive_api_frame[i] << " ";
-      std::cout <<  receive_api_frame[i];
-      nmea_data[i] =receive_api_frame[i];
-      nmea_data[i+1] = 0x00;
-      //nmea_str+=receive_api_frame[i];
+
+    // serial から response_buf に '\n' まで読み込む
+    boost::asio::read_until(*serial_, response_buf, '\n');
+
+    // https://faithandbrave.hateblo.jp/entry/20110324/1300950590
+    // const 属性を外す
+    // https://www.paveway.info/entry/2019/12/12/cpp_constcast
+
+    const char *data_c =  boost::asio::buffer_cast<const char*>(response_buf.data());    // const char *
+    //auto data_c =  boost::asio::buffer_cast<const char*>(response_buf.data());    // const char *
+
+    //char *data_p =  const_cast<char*>(boost::asio::buffer_cast<const char*>(response_buf.data()));    // char *
+    //std::string &data =  const_cast<std::string&>(boost::asio::buffer_cast<const char*>(response_buf.data()));    // char *
+    //printf("%x",data);
+    //std::string data = std::string(data_p);
+
+
+    std::string data = std::string(data_c);
+
+    if(call_back_f==true){
+      fncStr_(data);
     }
-    //std::cout << std::endl;
-    //fsub_(nmea_data);
-    //fncChar_(nmea_data);
-    //fncStr_(nmea_str);
-    //break;
   }
 }
 
@@ -239,4 +328,20 @@ void Gps::on_receive_all(std::string &data)
     fncStr_(data);
   }
 }
+
+void Gps::checksum(std::string &data){
+  //std::cout <<"data.length()=" << data.length() << std::endl;
+  unsigned char arr[data.length() + 1]; 
+	strcpy((char *)arr, data.c_str());
+  unsigned char checksum=0;
+
+  int l=data.length();
+  for(int i=1;i<l;i++){
+    checksum ^=arr[i];
+  }
+  //std::cout << "checksum" << std::hex << (unsigned int)checksum << std::endl;
+  // https://www.techiedelight.com/ja/convert-an-integer-to-hex-string-in-cpp/
+  data += "*"+((boost::format("%X") % (uint16_t)checksum).str())+"\r\n";
+}
+
 }

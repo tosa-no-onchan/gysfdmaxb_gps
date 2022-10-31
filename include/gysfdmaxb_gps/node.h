@@ -81,7 +81,7 @@ class GysfdmaxbNode {
     //! USB out protocol (see CfgPRT message for constants)
     uint16_t usb_out_ ;
     //! The measurement rate in Hz
-    double rate_;
+    int rate_;
     //! If true, set configure the User-Defined Datum
     bool set_dat_;
 

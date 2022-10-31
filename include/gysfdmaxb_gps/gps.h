@@ -31,6 +31,8 @@
 // ROS includes
 #include <ros/ros.h>
 
+#include <boost/format.hpp>
+
 // Other u-blox packages
 //#include <ublox/serialization/ublox_msgs.h>
 // u-blox gps
@@ -83,7 +85,7 @@ class Gps {
    * @param uart_out the UART Out protocol, see CfgPRT for options
    */
   void initializeSerial(std::string port, unsigned int baudrate,
-                        uint16_t uart_in, uint16_t uart_out);
+                        uint16_t uart_in, uint16_t uart_out, int rate=1);
 
   /**
    * @brief Reset the Serial I/O port after u-blox reset.
@@ -139,6 +141,8 @@ class Gps {
   void on_receive(const boost::system::error_code& ec, size_t bytes_transferred);
   void on_receive_all(std::string &data);
 
+  void checksum(std::string &data);
+
   FncStr fncStr_;
 
   FncChar fncChar_;
@@ -152,6 +156,10 @@ class Gps {
 
     //std::function<void(char *)> fnc;
 
+    //unsigned int _baudrate=9600;
+    unsigned int _baudrate=115200;
+    int rate_=1;
+    int meas_rate_;
     char nmea_data[512];
     std::string nmea_str;
 

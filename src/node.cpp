@@ -86,7 +86,7 @@ void GysfdmaxbNode::initialize() {
 void GysfdmaxbNode::initializeIo(){
   gps.setConfigOnStartup(config_on_startup_flag_);
 
-  gps.initializeSerial(device_, baudrate_, uart_in_, uart_out_);
+  gps.initializeSerial(device_, baudrate_, uart_in_, uart_out_,rate_);
 
 }
 
@@ -100,7 +100,7 @@ void GysfdmaxbNode::getRosParams() {
   set_usb_ = false;
 
   // Measurement rate params
-  nh->param("rate", rate_, 4.0);  // in Hz
+  nh->param("rate", rate_, 1);  // in Hz
 
 
   //if (enable_ppp_)
@@ -189,11 +189,16 @@ void GysfdmaxbNode::publish_nmea_str(std::string& data) {
 
         #endif
 
-
         fix_.header.stamp = ros::Time::now();
-        fix_.latitude  = std::stof(list[2])/100.0;  // 緯度
-        fix_.longitude = std::stof(list[4])/100.0;  // 経度
-        fix_.altitude  = std::stof(list[9]);  // 高度、海抜
+        try{
+          fix_.latitude  = std::stof(list[2])/100.0;  // 緯度
+          fix_.longitude = std::stof(list[4])/100.0;  // 経度
+          fix_.altitude  = std::stof(list[9]);  // 高度、海抜
+        }
+        catch (...){
+          // std::stof error
+          return;
+        }
 
 
         //float64[9] position_covariance
