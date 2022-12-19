@@ -1,4 +1,4 @@
-#include "gysfdmaxb_gps/gps.h"
+#include "gysfdmaxb_gps/gps.hpp"
 #include <boost/version.hpp>
 
 
@@ -64,7 +64,8 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
                              + port + " " + e.what());
   }
 
-  ROS_INFO("Gysfdmaxb: Opened serial port %s", port.c_str());
+  //ROS_INFO("Gysfdmaxb: Opened serial port %s", port.c_str());
+  RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: Opened serial port %s", port.c_str());
     
   if(BOOST_VERSION < 106600)
   {
@@ -124,7 +125,9 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
 
     // https://blog.myon.info/entry/2015/04/19/boost-asio-serial/
 
-    ROS_INFO("Gysfdmaxb: set option");
+    //ROS_INFO("Gysfdmaxb: set option");
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: set option");
+    //std::cout << "Gysfdmaxb: set option" << std::endl;
 
     // テキトウに1秒待つ
     std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -135,11 +138,15 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
     std::string s_boaud ="$PMTK251,115200*1F\r\n";
     
     if(boost::asio::write(*serial_, boost::asio::buffer(s_boaud)) != s_boaud.length()){
-      ROS_ERROR("Gysfdmax: set Baud Rate error");
+      //ROS_ERROR("Gysfdmax: set Baud Rate error");
+      RCLCPP_ERROR(node_->get_logger(),"Gysfdmax: set Baud Rate error");
+      //std::cout << "Gysfdmax: set Baud Rate error" << std::endl;
       return;
     }
 
-    ROS_INFO("Gysfdmaxb: set Baud Rate OK");
+    //ROS_INFO("Gysfdmaxb: set Baud Rate OK");
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: set Baud Rate OK");
+    //std::cout << "Gysfdmaxb: set Baud Rate OK" << std::endl;
 
     // テキトウに5秒待つ
     std::this_thread::sleep_for(std::chrono::seconds(5));
@@ -153,17 +160,23 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
     boost::asio::serial_port_base::baud_rate current_baudrate;
     serial->get_option(current_baudrate);
 
-    ROS_INFO("Gysfdmaxb: Get ASIO baudrate to %u", current_baudrate.value());
+    //ROS_INFO("Gysfdmaxb: Get ASIO baudrate to %u", current_baudrate.value());
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: Get ASIO baudrate to %u", current_baudrate.value());
+    //std::cout <<"Gysfdmaxb: Get ASIO baudrate to" << current_baudrate.value() << std::endl;
     #endif
 
     // set sample data
     //std::string s_sample_form = "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28\r\n";
     std::string s_sample_form = "$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
     if(boost::asio::write(*serial_, boost::asio::buffer(s_sample_form)) != s_sample_form.length()){
-      ROS_ERROR("Gysfdmaxb: set sampling data error");
+      //ROS_ERROR("Gysfdmaxb: set sampling data error");
+      RCLCPP_ERROR(node_->get_logger(),"Gysfdmaxb: set sampling data error");
+      //std::cout << "Gysfdmaxb: set sampling data error" << std::endl;
       return;
     }
-    ROS_INFO("Gysfdmaxb: set sampling data OK");
+    //ROS_INFO("Gysfdmaxb: set sampling data OK");
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: set sampling data OK");
+    //std::cout << "Gysfdmaxb: set sampling data OK" << std::endl;
 
     boost::this_thread::sleep(
           boost::posix_time::milliseconds(kSetBaudrateSleepMs));
@@ -177,14 +190,18 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
     // set samplling rate 6[Hz]
     //std::string s_sample_rate = "$PMTK220,166*2F\r\n";
 
-    ROS_INFO("Gysfdmaxb: set sampling rate %d",rate_);
+    //ROS_INFO("Gysfdmaxb: set sampling rate %d",rate_);
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: set sampling rate %d",rate_);
+    //std::cout << "Gysfdmaxb: set sampling rate" << rate_ << std::endl;
 
     std::string s_sample_rate = "$PMTK220,"+std::to_string(meas_rate_);
     checksum(s_sample_rate);
     //std::cout << s_sample_rate << std::endl;
 
     if(boost::asio::write(*serial_, boost::asio::buffer(s_sample_rate)) != s_sample_rate.length()){
-      ROS_ERROR("Gysfdmaxb: set sampling rate error");
+      //ROS_ERROR("Gysfdmaxb: set sampling rate error");
+      RCLCPP_ERROR(node_->get_logger(),"Gysfdmaxb: set sampling rate error");
+      //std::cout << "Gysfdmaxb: set sampling rate error" << std::endl;
       return;
     }
 
@@ -194,7 +211,9 @@ void Gps::initializeSerial(std::string port, unsigned int baudrate,
     // テキトウに2秒待つ
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    ROS_INFO("Gysfdmaxb: set option end");
+    //ROS_INFO("Gysfdmaxb: set option end");
+    RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: set option end");
+    //std::cout << "Gysfdmaxb: set option end" << std::endl;
 
   #endif
 
@@ -226,7 +245,8 @@ void Gps::resetSerial(std::string port) {
                              + port + " " + e.what());
   }
 
-  ROS_INFO("Gysfdmaxb: Reset serial port %s", port.c_str());
+  //ROS_INFO("Gysfdmaxb: Reset serial port %s", port.c_str());
+  RCLCPP_INFO(node_->get_logger(),"Gysfdmaxb: Reset serial port %s", port.c_str());
 
   #ifdef USE_WORKER_X
   // Set the I/O worker

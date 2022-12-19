@@ -1,13 +1,21 @@
-#ifndef GYSFDMAXB_GPS_NODE_H
-#define GYSFDMAXB_GPS_NODE_H
+#ifndef GYSFDMAXB_GPS_NODE_HPP
+#define GYSFDMAXB_GPS_NODE_HPP
 
 
 
 // ROS includes
-#include <ros/ros.h>
-#include <sensor_msgs/NavSatFix.h>
+//#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
 
-#include "gysfdmaxb_gps/gps.h"
+//#include <sensor_msgs/NavSatFix.h>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+
+#include "gysfdmaxb_gps/gps.hpp"
+
+
+//using sensor_msgs::msg::NavSatFix;
+
 
 namespace gysfdmaxb_gps {
 
@@ -19,12 +27,15 @@ namespace gysfdmaxb_gps {
 //};
 
 
-class GysfdmaxbNode {
+//class GysfdmaxbNode : public rclcpp::Node {
+class GysfdmaxbNode{
  public:
-    GysfdmaxbNode();
+    //GysfdmaxbNode(rclcpp::NodeOptions const & options);
+    GysfdmaxbNode(){};
 
     void initializeIo();
-    void initialize();
+    //void initialize();
+    void init(std::shared_ptr<rclcpp::Node> node);
     void getRosParams();
 
   private:
@@ -87,14 +98,26 @@ class GysfdmaxbNode {
 
     //gysfdmaxbProduct product;
 
+    std::shared_ptr<rclcpp::Node> node_;
+
 
     //! The ROS frame ID of this device
     std::string frame_id_;
     std::string fix_topic_;
 
-    ros::Publisher fix_publisher_;
+    //rclcpp::QoS gps_qos(10);
 
-    sensor_msgs::NavSatFix fix_;
+    //ros::Publisher fix_publisher_;
+    //rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_publisher_;
+    std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::NavSatFix>> fix_publisher_;
+
+    //sensor_msgs::NavSatFix fix_;
+    //sensor_msgs::msg::NavSatFix fix_;
+    std::shared_ptr<sensor_msgs::msg::NavSatFix> fix_;
+
+    //! Handles communication with the U-Blox Device
+    gysfdmaxb_gps::Gps gps;
+
 
 };
 
@@ -102,11 +125,13 @@ class GysfdmaxbNode {
 // start node.cpp common variable
 
 //! Node Handle for GPS node
-boost::shared_ptr<ros::NodeHandle> nh;
+//boost::shared_ptr<ros::NodeHandle> nh;
 
 
 //! Handles communication with the U-Blox Device
-gysfdmaxb_gps::Gps gps;
+//gysfdmaxb_gps::Gps gps;
+
+//rclcpp::QoS gps_qos(10);
 
 
 //! Flag for enabling configuration on startup

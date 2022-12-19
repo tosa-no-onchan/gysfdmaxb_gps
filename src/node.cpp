@@ -7,10 +7,11 @@
 -
 ------------------------------------*/
 
-#include "gysfdmaxb_gps/node.h"
+#include "gysfdmaxb_gps/node.hpp"
 
 using namespace gysfdmaxb_gps;
 
+//#define USE_BUNKAI
 
 #ifdef USE_BUNKAI
 // NMEAの緯度経度を「度分秒」(DMS)の文字列に変換する
@@ -48,21 +49,35 @@ std::string UTC2GMT900(std::string str) {
 //------------------------
 // gysfdmaxb ROS Node
 //------------------------   
-GysfdmaxbNode::GysfdmaxbNode(){
-  initialize();
-}
+//GysfdmaxbNode::GysfdmaxbNode(rclcpp::NodeOptions const & options)
+//: rclcpp::Node{"gysfdmaxb_gps", options}
+//{
+//  //init();
+//}
 
-void GysfdmaxbNode::initialize() {
+void GysfdmaxbNode::init(std::shared_ptr<rclcpp::Node> node) {
+
+  node_=node;
+  gps.init(node_);
+
+
   // Params must be set before initializing IO
   getRosParams();
 
   // set up Ros Publish part
-  fix_.status.status  = sensor_msgs::NavSatStatus::STATUS_FIX;
-  fix_.status.service = 0;
+  //fix_ =std::make_shared<sensor_msgs::msg::NavSatFix>();
+  ////fix_.status.status  = sensor_msgs::NavSatStatus::STATUS_FIX;
+  //fix_->status.status  = sensor_msgs::msg::NavSatStatus::STATUS_FIX;
+  //fix_->status.service = 0;
+  //fix_->header.frame_id = frame_id_;
 
-  fix_.header.frame_id = frame_id_;
-  fix_publisher_ = nh->advertise<sensor_msgs::NavSatFix>(fix_topic_, 10);
-
+  //fix_publisher_ = nh->advertise<sensor_msgs::NavSatFix>(fix_topic_, 10);
+  // https://yhrscoding.hatenablog.com/entry/2021/09/26/104445
+  rclcpp::QoS gps_qos(10);
+  gps_qos.reliable();
+  //video_qos.best_effort();
+  gps_qos.durability_volatile();
+  fix_publisher_ = node_->create_publisher<sensor_msgs::msg::NavSatFix>(fix_topic_, gps_qos);
 
   initializeIo();
 
@@ -91,16 +106,23 @@ void GysfdmaxbNode::initializeIo(){
 }
 
 void GysfdmaxbNode::getRosParams() {
-  nh->param("device", device_, std::string("/dev/ttyUSB0"));
-  nh->param("frame_id", frame_id_, std::string("gps_link"));
-
-  nh->param("topicName", fix_topic_, std::string("fix"));
-
+  //nh->param("device", device_, std::string("/dev/ttyUSB0"));
+  node_->declare_parameter<std::string>("device",std::string("/dev/ttyUSB0"));
+  //nh->param("frame_id", frame_id_, std::string("gps_link"));
+  node_->declare_parameter<std::string>("frame_id",std::string("gps_link"));
+  //nh->param("topicName", fix_topic_, std::string("fix"));
+  node_->declare_parameter<std::string>("topicName",std::string("fix"));
 
   set_usb_ = false;
 
   // Measurement rate params
-  nh->param("rate", rate_, 1);  // in Hz
+  //nh->param("rate", rate_, 1);  // in Hz
+  node_->declare_parameter<int>("rate",1);
+
+  node_->get_parameter<std::string>("device",device_);
+  node_->get_parameter<std::string>("frame_id",frame_id_);
+  node_->get_parameter<std::string>("topicName",fix_topic_);
+  node_->get_parameter<int>("rate",rate_);
 
 
   //if (enable_ppp_)
@@ -154,9 +176,17 @@ void GysfdmaxbNode::publish_nmea_str(std::string& data) {
     
     // $GPGGAセンテンスのみ読み込む
     if (list[0] == "$GPGGA") {
-      
+
       // ステータス
       if(list[6] != "0"){      
+
+        // set up Ros Publish part
+        fix_ =std::make_shared<sensor_msgs::msg::NavSatFix>();
+        //fix_.status.status  = sensor_msgs::NavSatStatus::STATUS_FIX;
+        fix_->status.status  = sensor_msgs::msg::NavSatStatus::STATUS_FIX;
+        fix_->status.service = 0;
+
+        fix_->header.frame_id = frame_id_;
 
         #ifdef USE_BUNKAI
 
@@ -189,17 +219,17 @@ void GysfdmaxbNode::publish_nmea_str(std::string& data) {
 
         #endif
 
-        fix_.header.stamp = ros::Time::now();
+        //fix_.header.stamp = ros::Time::now();
+        fix_->header.stamp = node_->now();
         try{
-          fix_.latitude  = std::stof(list[2])/100.0;  // 緯度
-          fix_.longitude = std::stof(list[4])/100.0;  // 経度
-          fix_.altitude  = std::stof(list[9]);  // 高度、海抜
+          fix_->latitude  = std::stof(list[2])/100.0;  // 緯度
+          fix_->longitude = std::stof(list[4])/100.0;  // 経度
+          fix_->altitude  = std::stof(list[9]);  // 高度、海抜
         }
         catch (...){
           // std::stof error
           return;
         }
-
 
         //float64[9] position_covariance
         //# If the covariance of the fix is known, fill it in completely. If the
@@ -213,13 +243,13 @@ void GysfdmaxbNode::publish_nmea_str(std::string& data) {
         //uint8 COVARIANCE_TYPE_KNOWN = 3
         //uint8 position_covariance_type
 
-        fix_.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+        fix_->position_covariance_type = sensor_msgs::msg::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
 
-        //fix_.position_covariance[0] = position_error_model_.drift.X()*position_error_model_.drift.X() + position_error_model_.gaussian_noise.X()*position_error_model_.gaussian_noise.X();
-        //fix_.position_covariance[4] = position_error_model_.drift.Y()*position_error_model_.drift.Y() + position_error_model_.gaussian_noise.Y()*position_error_model_.gaussian_noise.Y();
-        //fix_.position_covariance[8] = position_error_model_.drift.Z()*position_error_model_.drift.Z() + position_error_model_.gaussian_noise.Z()*position_error_model_.gaussian_noise.Z();
+        //fix_->position_covariance[0] = position_error_model_.drift.X()*position_error_model_.drift.X() + position_error_model_.gaussian_noise.X()*position_error_model_.gaussian_noise.X();
+        //fix_->position_covariance[4] = position_error_model_.drift.Y()*position_error_model_.drift.Y() + position_error_model_.gaussian_noise.Y()*position_error_model_.gaussian_noise.Y();
+        //fix_->position_covariance[8] = position_error_model_.drift.Z()*position_error_model_.drift.Z() + position_error_model_.gaussian_noise.Z()*position_error_model_.gaussian_noise.Z();
 
-        fix_publisher_.publish(fix_);
+        fix_publisher_->publish(*fix_);
 
       }
       else{
@@ -234,8 +264,15 @@ void GysfdmaxbNode::publish_nmea_str(std::string& data) {
 }
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "gysfdmaxb_gps");
-  nh.reset(new ros::NodeHandle("~"));
+
+  using namespace std::chrono_literals;
+  rclcpp::WallRate loop(1);
+
+  //ros::init(argc, argv, "gysfdmaxb_gps");
+  //nh.reset(new ros::NodeHandle("~"));
+
+  rclcpp::init(argc, argv);
+
   //ros::Subscriber subRtcm = nh->subscribe("/rtcm", 10, rtcmCallback);
   //nh->param("debug", ublox_gps::debug, 1);
   //if(ublox_gps::debug) {
@@ -244,10 +281,9 @@ int main(int argc, char** argv) {
   //   ros::console::notifyLoggerLevelsChanged();
   //
   //}
+  #ifdef ROS1_USE
   GysfdmaxbNode node;
-
   ros::spinOnce();
-
   ros::Rate rate(1);   //  1[Hz]
 
   //int i=0;
@@ -263,6 +299,21 @@ int main(int argc, char** argv) {
   //}
 
   ros::spin();
+  #endif
+
+  std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("gysfdmaxb_gps",rclcpp::NodeOptions{});
+
+  //rclcpp::spin(std::make_shared<gysfdmaxb_gps::GysfdmaxbNode>(rclcpp::NodeOptions{}));
+
+  GysfdmaxbNode gysfdmaxb;
+  gysfdmaxb.init(node);
+
+  while(rclcpp::ok()){
+      loop.sleep();
+  }
+
+
+  rclcpp::shutdown();
 
   return 0;
 }

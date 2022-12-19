@@ -9,8 +9,8 @@
 -
 ----------------------------------------------------*/
 
-#ifndef GYSFDMAXB_GPS_GPS_H
-#define GYSFDMAXB_GPS_GPS_H
+#ifndef GYSFDMAXB_GPS_GPS_HPP
+#define GYSFDMAXB_GPS_GPS_HPP
 
 
 // Boost
@@ -29,9 +29,14 @@
 #include <boost/bind.hpp>
 
 // ROS includes
-#include <ros/ros.h>
+//#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
+
 
 #include <boost/format.hpp>
+
+#include <boost/array.hpp>
 
 // Other u-blox packages
 //#include <ublox/serialization/ublox_msgs.h>
@@ -70,6 +75,10 @@ class Gps {
 
   Gps();
   virtual ~Gps();
+
+  void init(std::shared_ptr<rclcpp::Node> node){
+    node_=node;
+  }
 
   /**
    * @brief Set the internal flag for enabling or disabling the initial configurations.
@@ -153,6 +162,8 @@ class Gps {
     bool call_back_f=false;
     fSub fsub_;
     fNmea fnamea_;
+
+    std::shared_ptr<rclcpp::Node> node_;
 
     //std::function<void(char *)> fnc;
 
